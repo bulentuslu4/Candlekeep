@@ -1,6 +1,6 @@
-import { BOOKS, BOOK_CATEGORIES } from './books.js';
+import { BOOKS, BOOK_CATEGORIES, EN } from './books.js';
 import { GAMES, GAME_CATEGORIES } from './games.js';
-import { slug } from '../util.js';
+import { slug, norm } from '../util.js';
 
 export const CATEGORIES = { book: BOOK_CATEGORIES, game: GAME_CATEGORIES };
 
@@ -17,6 +17,7 @@ function build(kind, groups, cats) {
         kind,
         category: c.id,
         title: e.t,
+        titleEn: EN[e.t] || '',
         titleTr: e.tr || '',
         creator: e.a || '',
         series: e.s || '',
@@ -39,6 +40,28 @@ export const CATALOG_BY_ID = new Map(CATALOG.map((e) => [e.id, e]));
 
 export function catalogId(kind, title) {
   return (kind === 'book' ? 'b-' : 'g-') + slug(title);
+}
+
+/** Ekranda gösterilecek adlar: ana ad İngilizce (varsa), altında Türkçesi, en altta orijinali. */
+export function names(item) {
+  const c = item.catalogId ? CATALOG_BY_ID.get(item.catalogId) : CATALOG_BY_ID.get(item.id);
+  const en = item.titleEn || c?.titleEn || '';
+  const tr = item.titleTr || c?.titleTr || '';
+  const main = en || item.title;
+  const n = norm(main);
+  return {
+    main,
+    tr: tr && norm(tr) !== n ? tr : '',
+    orig: en && norm(item.title) !== n ? item.title : '',
+  };
+}
+
+/** Elle eklenmiş bir eser katalogdakiyle aynı mı? (İngilizce, Türkçe, orijinal ad ve takma adlara bakar) */
+export function findCatalogMatch(kind, title) {
+  const n = norm(title);
+  if (!n) return null;
+  return CATALOG.find((c) => c.kind === kind
+    && [c.title, c.titleEn, c.titleTr, ...c.aliases].some((t) => t && norm(t) === n)) || null;
 }
 
 export function categoryLabel(kind, id) {

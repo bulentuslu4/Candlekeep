@@ -2,13 +2,13 @@
 
 import { h, toast, openDrawer, closeDrawer, readFile, norm } from '../util.js';
 import * as store from '../store.js';
-import { CATALOG, CATALOG_BY_ID } from '../catalog/index.js';
+import { CATALOG, CATALOG_BY_ID, names } from '../catalog/index.js';
 import { parseQuotes, makeMatcher } from '../quotes-parser.js';
 import { pdfToText } from '../pdf-text.js';
 
 function bookTitle(id) {
   const it = store.getItem(id) || CATALOG_BY_ID.get(id);
-  return it ? it.title : 'Bilinmeyen kitap';
+  return it ? names(it).main : 'Bilinmeyen kitap';
 }
 
 export function quoteBlock(q, { compact = false, showBook = false, onMove } = {}) {
@@ -130,10 +130,10 @@ function preview(quotes) {
 /* ---------- Kitabı değiştir ---------- */
 
 function moveQuote(q) {
-  const books = [...store.itemsOf('book')].sort((a, b) => a.title.localeCompare(b.title, 'tr'));
+  const books = [...store.itemsOf('book')].sort((a, b) => names(a).main.localeCompare(names(b).main, 'tr'));
   const sel = h('select', { value: q.bookId || '' },
     h('option', { value: '' }, 'Diğer alıntılar (kitapsız)'),
-    books.map((b) => h('option', { value: b.id }, b.title)));
+    books.map((b) => h('option', { value: b.id }, names(b).main)));
   openDrawer(h('div', { class: 'detail' },
     h('h2', null, 'Alıntı hangi kitaptan?'),
     h('p', { class: 'muted' }, 'Listede sadece rafındaki kitaplar var.'),

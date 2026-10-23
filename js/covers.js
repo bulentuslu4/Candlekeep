@@ -2,6 +2,7 @@
 // Bulunanlar tarayıcıda önbelleğe alınır; bulunamayanlar için ciltli kitap görünümlü bir kapak çizilir.
 
 import { h, hashHue, slug } from './util.js';
+import { names } from './catalog/index.js';
 
 const CACHE_KEY = 'kutuphane.covers.v1';
 const RETRY_MS = 14 * 24 * 3600 * 1000;
@@ -123,7 +124,7 @@ export function coverBox(item, { size = 'card' } = {}) {
   const hue = hashHue(item.title);
   const box = h('div', { class: `cover cover-${size}`, style: { '--h': hue } },
     h('div', { class: 'cover-fallback', 'aria-hidden': 'true' },
-      h('span', { class: 'cf-title' }, item.title),
+      h('span', { class: 'cf-title' }, names(item).main),
       item.creator && h('span', { class: 'cf-author' }, item.creator)));
 
   const load = () => {

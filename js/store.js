@@ -1,7 +1,7 @@
 // Tüm veri tarayıcının localStorage'ında tek anahtar altında durur.
 // Yedek dosyası bu nesnenin aynısıdır; v2'deki XP/başarımlar için `log` tutuluyor.
 
-import { CATALOG_BY_ID, SEED, catalogId } from './catalog/index.js';
+import { CATALOG_BY_ID, SEED, catalogId, findCatalogMatch } from './catalog/index.js';
 import { debounce, toast } from './util.js';
 
 const KEY = 'kutuphane.data.v1';
@@ -36,6 +36,8 @@ function empty() {
     quotes: [],
     settings: { theme: 'parsomen', lastBackup: null },
     log: [],
+    quiz: { history: [], answered: {} },
+    achievements: {},
     createdAt: Date.now(),
   };
 }
@@ -52,6 +54,7 @@ export function load() {
     const raw = localStorage.getItem(KEY);
     if (raw) {
       state = migrate(JSON.parse(raw));
+      if (linkCustomToCatalog()) persist();
       return { fresh: false };
     }
   } catch (e) {
@@ -65,7 +68,57 @@ export function load() {
 
 function migrate(s) {
   const base = empty();
-  return { ...base, ...s, settings: { ...base.settings, ...(s.settings || {}) } };
+  return {
+    ...base, ...s,
+    settings: { ...base.settings, ...(s.settings || {}) },
+    quiz: { history: [], answered: {}, ...(s.quiz || {}) },
+    achievements: s.achievements || {},
+  };
+}
+
+// Elle eklenip sonradan katalogda bulunan eserleri katalogdakine bağla (veriler korunur)
+function linkCustomToCatalog() {
+  let changed = false;
+  for (const it of Object.values(state.items)) {
+    if (it.catalogId) continue;
+    const c = findCatalogMatch(it.kind, it.title);
+    if (!c || state.items[c.id]) continue;
+    delete state.items[it.id];
+    state.quotes.forEach((q) => { if (q.bookId === it.id) q.bookId = c.id; });
+    state.items[c.id] = {
+      ...it, id: c.id, catalogId: c.id, title: c.title,
+      titleTr: it.titleTr || c.titleTr, creator: it.creator || c.creator, series: it.series || c.series,
+      seriesNo: it.seriesNo ?? c.seriesNo, category: it.category || c.category, steam: it.steam || c.steam,
+    };
+    changed = true;
+  }
+  return changed;
+}
+
+/** Hem elle eklenmiş hem katalogdan eklenmiş aynı eserler */
+export function duplicates() {
+  const out = [];
+  for (const it of Object.values(state.items)) {
+    if (it.catalogId) continue;
+    const c = findCatalogMatch(it.kind, it.title);
+    if (c && state.items[c.id]) out.push({ custom: it, catalog: state.items[c.id] });
+  }
+  return out;
+}
+
+export function mergeDuplicate(customId, catalogId, keep) {
+  const a = state.items[customId];
+  const b = state.items[catalogId];
+  if (!a || !b) return;
+  const src = keep === 'custom' ? a : b;
+  state.items[catalogId] = {
+    ...b, status: src.status, rating: src.rating, fav: src.fav || a.fav || b.fav,
+    note: [b.note, a.note].filter(Boolean).join('\n'), tags: [...new Set([...(a.tags || []), ...(b.tags || [])])],
+    cover: b.cover || a.cover, progress: src.progress, updatedAt: Date.now(),
+  };
+  delete state.items[customId];
+  state.quotes.forEach((q) => { if (q.bookId === customId) q.bookId = catalogId; });
+  emit({ type: 'all' });
 }
 
 function seed() {
@@ -228,6 +281,25 @@ export function quotesFor(bookId) {
   return state.quotes.filter((q) => q.bookId === bookId);
 }
 
+/* ---------- Quiz ---------- */
+
+/** answers: [{id, right}] — sonucu kaydeder */
+export function recordQuiz(result, answers) {
+  const a = state.quiz.answered;
+  for (const x of answers) {
+    const r = a[x.id] || (a[x.id] = { right: 0, wrong: 0, last: 0 });
+    if (x.right) r.right++; else r.wrong++;
+    r.last = Date.now();
+  }
+  state.quiz.history.push({ t: Date.now(), ...result });
+  logEvent({ type: 'quiz', pack: result.pack, correct: result.correct, total: result.total });
+  emit({ type: 'quiz' });
+}
+
+export function saveSilently() {
+  persistSoon();
+}
+
 /* ---------- Ayarlar ---------- */
 
 export function setSetting(key, value) {
@@ -256,11 +328,26 @@ export function importBackup(text, mode = 'replace') {
       if (!mine || (it.updatedAt || 0) > (mine.updatedAt || 0)) state.items[id] = it;
     }
     Object.assign(state.dismissed, incoming.dismissed);
+    for (const [k, v] of Object.entries(incoming.achievements)) if (!state.achievements[k]) state.achievements[k] = v;
+    const seenQ = new Set(state.quiz.history.map((r) => r.t));
+    state.quiz.history.push(...incoming.quiz.history.filter((r) => !seenQ.has(r.t)));
+    state.quiz.history.sort((x, y) => x.t - y.t);
+    for (const [k, v] of Object.entries(incoming.quiz.answered)) {
+      const m = state.quiz.answered[k];
+      if (!m || v.last > m.last) state.quiz.answered[k] = v;
+    }
     const known = new Set(state.quotes.map((q) => q.id));
     state.quotes.push(...incoming.quotes.filter((q) => !known.has(q.id)));
     state.log.push(...incoming.log);
-    state.log.sort((a, b) => a.t - b.t);
+    const seen = new Set();
+    state.log = state.log.sort((a, b) => a.t - b.t).filter((e) => {
+      const k = `${e.t}|${e.id}|${e.type}`;
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
   }
+  linkCustomToCatalog();
   persist();
   emit({ type: 'all' });
 }

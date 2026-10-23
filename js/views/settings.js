@@ -52,6 +52,22 @@ function importBackupFlow() {
   setTimeout(() => input.remove(), 60000);
 }
 
+function dupPanel(root) {
+  const dups = store.duplicates();
+  if (!dups.length) return null;
+  const fmt = (i) => `${store.statusLabel(i.kind, i.status)}${i.rating != null ? ', ' + i.rating : ''}`;
+  return h('section', { class: 'panel' },
+    h('h2', null, 'Rafta iki kez duranlar'),
+    h('p', null, 'Bunları önce elle eklemişsin, sonra katalogdan da işaretlemişsin. Hangisinin bilgilerini tutayım?'),
+    dups.map(({ custom, catalog }) => h('div', { class: 'dup-row' },
+      h('strong', null, catalog.title),
+      h('div', { class: 'row' },
+        h('button', { type: 'button', class: 'btn', onclick: () => { store.mergeDuplicate(custom.id, catalog.id, 'custom'); toast('Birleştirildi'); renderSettings(root); } },
+          `Elle eklediğim (${fmt(custom)})`),
+        h('button', { type: 'button', class: 'btn', onclick: () => { store.mergeDuplicate(custom.id, catalog.id, 'catalog'); toast('Birleştirildi'); renderSettings(root); } },
+          `Katalogdaki (${fmt(catalog)})`)))));
+}
+
 export function renderSettings(root) {
   const s = store.getState();
   const books = store.itemsOf('book').length;
@@ -84,6 +100,8 @@ export function renderSettings(root) {
         }, 'Yedeği indir'),
         h('button', { type: 'button', class: 'btn', onclick: importBackupFlow }, 'Yedekten yükle'))),
 
+    dupPanel(root),
+
     h('section', { class: 'panel' },
       h('h2', null, 'Alıntı dosyası'),
       h('p', null, 'PDF, Word (.docx) ya da .txt halini yükle. Eşleşen kitaplar istersen rafa "Okudum" olarak eklenir.'),
@@ -99,5 +117,5 @@ export function renderSettings(root) {
         },
       }, 'Her şeyi sil')),
 
-    h('p', { class: 'muted small foot-note' }, 'Candlekeep, sürüm 1.1'));
+    h('p', { class: 'muted small foot-note' }, 'Candlekeep, sürüm 2.0'));
 }

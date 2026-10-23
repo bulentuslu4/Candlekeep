@@ -3,7 +3,7 @@
 import { h, norm, fmtRating } from '../util.js';
 import * as store from '../store.js';
 import { STATUS, DONE, statusLabel } from '../store.js';
-import { CATEGORIES, CATALOG_BY_ID } from '../catalog/index.js';
+import { CATEGORIES, CATALOG_BY_ID, names } from '../catalog/index.js';
 import { coverBox } from '../covers.js';
 import { openDetail, openNew } from './detail.js';
 import { importQuotesFlow } from './quotes.js';
@@ -13,8 +13,10 @@ const ui = { kind: 'book', status: 'all', q: '', sort: 'updated', cat: '' };
 let heroQuote = null;
 
 function pickQuote(exclude) {
-  const all = store.getState().quotes.filter((q) => (q.tr || q.orig).length <= 480);
-  const pool = all.length ? all : store.getState().quotes;
+  const qs = store.getState().quotes;
+  const both = qs.filter((q) => q.tr && q.orig && Math.max(q.tr.length, q.orig.length) <= 900);
+  const short = qs.filter((q) => (q.tr || q.orig).length <= 600);
+  const pool = both.length ? both : short.length ? short : qs;
   if (!pool.length) return null;
   if (pool.length === 1) return pool[0];
   let q;
@@ -31,13 +33,17 @@ function heroSection() {
   }
   const q = heroQuote;
   const book = q.bookId && (store.getItem(q.bookId) || CATALOG_BY_ID.get(q.bookId));
-  const main = (q.tr || q.orig).replace(/^["“”«»„']+/, '').replace(/["“”«»]+$/, '');
-  const sub = q.tr && q.orig ? q.orig : '';
-  return h('section', { class: 'hero' },
-    h('blockquote', { class: 'hero-text' }, main),
-    sub && h('blockquote', { class: 'hero-orig' }, sub),
+  const tidy = (t) => t.replace(/^["“”«»„']+/, '').replace(/["“”«»]+$/, '');
+  const both = !!(q.tr && q.orig);
+  const len = Math.max((q.tr || '').length, (q.orig || '').length);
+  // Uzun alıntılarda yazı küçülsün, ekrana sığsın
+  const size = len < 170 ? 'xl' : len < 330 ? 'l' : len < 560 ? 'm' : 's';
+  return h('section', { class: `hero size-${size}${both ? ' two' : ''}` },
+    h('div', { class: 'hero-cols' },
+      q.tr && h('blockquote', { class: 'hero-text', lang: 'tr' }, tidy(q.tr)),
+      q.orig && h('blockquote', { class: 'hero-text' + (both ? ' hero-orig' : '') }, tidy(q.orig))),
     h('div', { class: 'hero-foot' },
-      h('cite', null, book ? book.title : q.section || ''),
+      h('cite', null, book ? names(book).main : q.section || ''),
       h('button', {
         type: 'button', class: 'link',
         onclick: (e) => {
@@ -63,6 +69,7 @@ function card(item, showStatus) {
   const cover = coverBox(item);
   if (item.rating != null) cover.append(h('span', { class: 'badge-rating', 'aria-label': `Puan ${fmtRating(item.rating)}` }, fmtRating(item.rating)));
   if (item.fav) cover.append(h('span', { class: 'badge-fav', 'aria-label': 'Favori' }, '♥'));
+  const n = names(item);
   const sub = [];
   if (item.series) sub.push(item.series + (item.seriesNo != null ? ` #${item.seriesNo}` : ''));
   else if (item.creator) sub.push(item.creator);
@@ -71,7 +78,8 @@ function card(item, showStatus) {
     onclick: () => openDetail(item.id),
   },
   cover,
-  h('span', { class: 'card-title' }, item.title),
+  h('span', { class: 'card-title' }, n.main),
+  n.tr && h('span', { class: 'card-tr' }, n.tr),
   h('span', { class: 'card-sub' }, sub.join(''), showStatus && !DONE[item.kind].includes(item.status) && h('span', { class: 'card-status' }, statusLabel(item.kind, item.status))),
   item.status === 'reading' || item.status === 'playing'
     ? item.progress && h('span', { class: 'card-progress' }, item.progress)
@@ -90,7 +98,7 @@ export function renderShelf(root) {
     const f = norm(ui.q);
     let items = all.filter((i) => (ui.status === 'all' || i.status === ui.status)
       && (!ui.cat || (i.category || '') === ui.cat)
-      && (!f || norm(`${i.title} ${i.titleTr} ${i.creator} ${i.series} ${(i.tags || []).join(' ')}`).includes(f)));
+      && (!f || norm(`${i.title} ${names(i).main} ${i.titleTr} ${i.creator} ${i.series} ${(i.tags || []).join(' ')}`).includes(f)));
     items.sort(sorter(ui.sort));
     if (!all.length) {
       grid.replaceChildren(h('div', { class: 'empty inline' },

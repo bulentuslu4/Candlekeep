@@ -1,9 +1,9 @@
 // Keşfet: hazır katalogdan tek tıkla işaretleme. İşaretlenen her şey doğrudan rafa girer.
 
-import { h, norm, toast, $$ } from '../util.js';
+import { h, norm, toast, $$, fmtRating } from '../util.js';
 import * as store from '../store.js';
 import { DONE, statusLabel } from '../store.js';
-import { CATALOG, CATEGORIES } from '../catalog/index.js';
+import { CATALOG, CATEGORIES, names } from '../catalog/index.js';
 import { coverBox } from '../covers.js';
 
 const ui = { kind: 'book', q: '', hideMarked: false, ol: {} };
@@ -64,13 +64,16 @@ function refreshCard(el) {
   if (ui.hideMarked && (s.item || s.dismissed)) el.classList.add('fade-out');
 }
 
-function dcard(entry) {
+function dcard(entry, reason) {
   const w = WORDS[entry.kind];
+  const n = names(entry);
   const el = h('article', { class: 'dcard', dataset: { cid: entry.id } },
     h('div', { class: 'dcover' }, coverBox(entry), h('span', { class: 'dtag' })),
     h('div', { class: 'dmeta' },
-      h('span', { class: 'card-title' }, entry.title),
-      h('span', { class: 'card-sub' }, entry.series && entry.seriesNo != null && h('span', { class: 'sno' }, `#${entry.seriesNo}`), entry.creator)),
+      h('span', { class: 'card-title' }, n.main),
+      n.tr && h('span', { class: 'card-tr' }, n.tr),
+      h('span', { class: 'card-sub' }, entry.series && entry.seriesNo != null && h('span', { class: 'sno' }, `#${entry.seriesNo}`), entry.creator),
+      reason && h('span', { class: 'reason' }, reason)),
     h('div', { class: 'dactions' },
       h('button', { type: 'button', class: 'dact done', title: w.done, onclick: () => act(entry, 'done') }, w.done),
       h('button', { type: 'button', class: 'dact want', title: w.want, onclick: () => act(entry, 'want') }, 'Sonra'),
@@ -153,6 +156,55 @@ function olSection(q, autoRun) {
   return sec;
 }
 
+/* ---------- Sana göre: puanlarından öneriler ---------- */
+
+function recommendations(kind) {
+  const rated = store.itemsOf(kind).filter((i) => i.rating != null);
+  if (rated.length < 5) return [];
+  const avg = (l) => l.reduce((a, i) => a + i.rating, 0) / l.length;
+  const group = (key) => {
+    const m = new Map();
+    for (const i of rated) {
+      const k = key(i);
+      if (!k) continue;
+      if (!m.has(k)) m.set(k, []);
+      m.get(k).push(i);
+    }
+    return m;
+  };
+  const bySeries = group((i) => i.series);
+  const byCreator = group((i) => norm(i.creator));
+  const byCat = group((i) => i.category);
+  const dismissed = store.getState().dismissed;
+  const out = [];
+  for (const e of CATALOG) {
+    if (e.kind !== kind || store.getItem(e.id) || dismissed[e.id]) continue;
+    let score = 0;
+    let because = null;
+    const consider = (list, weight) => {
+      if (!list) return;
+      score += (avg(list) - 6.5) * weight;
+      const best = list.reduce((a, b) => (b.rating > a.rating ? b : a));
+      if (!because || best.rating > because.rating) because = best;
+    };
+    if (e.series) consider(bySeries.get(e.series), 1.5);
+    if (e.creator) consider(byCreator.get(norm(e.creator)), 1.2);
+    const cat = byCat.get(e.category);
+    if (cat && cat.length >= 3) score += (avg(cat) - 6.5) * 0.5;
+    if (score > 1 && because) out.push({ e, score, because });
+  }
+  return out.sort((a, b) => b.score - a.score).slice(0, 12);
+}
+
+function recSection(kind) {
+  const recs = recommendations(kind);
+  if (!recs.length) return null;
+  return h('section', { class: 'dsection recs', id: 'kat-sana' },
+    h('h2', { class: 'section-title' }, 'Sana göre'),
+    h('p', { class: 'muted' }, 'Puanlarına bakarak seçtim: sevdiğin yazar, seri ya da stüdyodan, henüz rafında olmayanlar.'),
+    h('div', { class: 'dgrid' }, recs.map((r) => dcard(r.e, `${names(r.because).main} için ${fmtRating(r.because.rating)} vermiştin`))));
+}
+
 function seriesBlock(name, entries) {
   const w = WORDS[entries[0].kind];
   const markAll = () => {
@@ -174,7 +226,7 @@ export function renderDiscover(root) {
   const kind = ui.kind;
   const f = norm(ui.q);
   const entries = CATALOG.filter((e) => e.kind === kind
-    && (!f || norm(`${e.title} ${e.titleTr} ${e.creator} ${e.series}`).includes(f))
+    && (!f || norm(`${e.title} ${e.titleEn} ${e.titleTr} ${e.creator} ${e.series} ${e.aliases.join(' ')}`).includes(f))
     && (!ui.hideMarked || (!store.getItem(e.id) && !store.getState().dismissed[e.id])));
 
   const marked = CATALOG.filter((e) => e.kind === kind && (store.getItem(e.id) || store.getState().dismissed[e.id])).length;
@@ -227,6 +279,7 @@ export function renderDiscover(root) {
           href: '#kat-' + c.id,
           onclick: (e) => { e.preventDefault(); document.getElementById('kat-' + c.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); },
         }, c.label)))),
+    !ui.q && !ui.hideMarked && recSection(kind),
     ...(sections.some(Boolean)
       ? sections.filter(Boolean)
       : [h('p', { class: 'muted empty inline' }, ui.hideMarked && !ui.q ? 'Bu bölümde bakmadığın eser kalmadı.' : 'Katalogda bu aramayla eşleşen eser yok.')]),

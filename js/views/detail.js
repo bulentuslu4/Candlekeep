@@ -4,7 +4,7 @@
 import { h, openDrawer, closeDrawer, toast, fmtRating } from '../util.js';
 import * as store from '../store.js';
 import { STATUS } from '../store.js';
-import { CATEGORIES } from '../catalog/index.js';
+import { CATEGORIES, names } from '../catalog/index.js';
 import { coverBox, editionCovers } from '../covers.js';
 import { quoteBlock } from './quotes.js';
 
@@ -124,8 +124,9 @@ function render(item, isNew) {
   const head = h('div', { class: 'detail-head' },
     coverWrap,
     h('div', { class: 'detail-title' },
-      h('h2', null, cur().title || (isNew ? (item.kind === 'book' ? 'Yeni kitap' : 'Yeni oyun') : '')),
-      cur().titleTr && h('p', { class: 'muted' }, cur().titleTr),
+      h('h2', null, (cur().title && names(cur()).main) || (isNew ? (item.kind === 'book' ? 'Yeni kitap' : 'Yeni oyun') : '')),
+      cur().title && names(cur()).tr && h('p', { class: 'muted' }, names(cur()).tr),
+      cur().title && names(cur()).orig && h('p', { class: 'muted small' }, 'Orijinal adı: ' + names(cur()).orig),
       cur().creator && h('p', { class: 'creator' }, cur().creator),
       h('div', { class: 'rating-row' },
         h('label', { class: 'rating-label' }, 'Puan', ratingInput, h('span', { class: 'muted' }, '/ 10')),

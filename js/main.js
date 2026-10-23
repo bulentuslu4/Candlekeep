@@ -6,11 +6,13 @@ import { renderShelf } from './views/shelf.js';
 import { renderDiscover, onDiscoverChange } from './views/discover.js';
 import { renderQuotes } from './views/quotes.js';
 import { renderSettings, applyTheme, THEMES } from './views/settings.js';
+import { renderQuiz, checkBadges, currentRank } from './views/quiz.js';
 
 const ROUTES = {
   raf: { render: renderShelf, title: 'Rafım' },
   kesfet: { render: renderDiscover, title: 'Keşfet' },
   alintilar: { render: renderQuotes, title: 'Alıntılar' },
+  quiz: { render: renderQuiz, title: 'Quiz' },
   ayarlar: { render: renderSettings, title: 'Ayarlar' },
 };
 
@@ -34,10 +36,29 @@ const rerender = debounce(() => {
   window.scrollTo(0, y);
 }, 60);
 
+function updateRankChip() {
+  const r = currentRank();
+  const chip = $('#rank-chip');
+  chip.replaceChildren();
+  const lvl = document.createElement('span');
+  lvl.className = 'chip-lvl';
+  lvl.textContent = r.lvl;
+  chip.append(lvl, r.name);
+  chip.title = `${r.xp} XP`;
+}
+
+const afterChange = debounce(() => {
+  const fresh = checkBadges();
+  updateRankChip();
+  if (fresh.length && current === 'quiz') rerender();
+}, 400);
+
 function onChange(change) {
+  afterChange();
   if (change.type === 'settings' && change.key === 'theme') return syncThemeSelect();
   if (change.type === 'all') { applyTheme(store.getState().settings.theme); syncThemeSelect(); }
   if (current === 'kesfet' && onDiscoverChange(change)) return;
+  if (current === 'quiz' && change.type === 'quiz') return;
   if (current === 'ayarlar' && change.type === 'settings') return;
   rerender();
 }
@@ -70,6 +91,8 @@ function init() {
   window.addEventListener('hashchange', route);
   if (!location.hash) history.replaceState(null, '', '#raf');
   route();
+  updateRankChip();
+  setTimeout(() => { if (checkBadges().length && current === 'quiz') rerender(); updateRankChip(); }, 800);
 }
 
 init();
