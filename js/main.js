@@ -23,7 +23,7 @@ function route() {
   const view = $('#view');
   view.dataset.view = current;
   ROUTES[current].render(view);
-  document.title = `${ROUTES[current].title} | Kütüphane`;
+  document.title = `${ROUTES[current].title} | Candlekeep`;
   for (const a of $$('.nav a')) a.setAttribute('aria-current', a.getAttribute('href') === '#' + current ? 'page' : 'false');
   window.scrollTo(0, 0);
 }

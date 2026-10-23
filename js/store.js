@@ -151,7 +151,7 @@ export function addFromCatalog(cid, status, extra = {}, opts = {}) {
 
 export function createCustom(data) {
   const now = Date.now();
-  const id = 'c-' + now.toString(36) + Math.random().toString(36).slice(2, 6);
+  const id = data.id || 'c-' + now.toString(36) + Math.random().toString(36).slice(2, 6);
   const item = {
     id, catalogId: null, kind: data.kind, title: '', titleTr: '', creator: '', series: '',
     seriesNo: null, category: '', platform: data.kind === 'game' ? 'PC' : '', steam: null,
@@ -246,7 +246,7 @@ export function exportBackup() {
 export function importBackup(text, mode = 'replace') {
   const obj = JSON.parse(text);
   const data = obj && obj.app === 'kutuphane' ? obj.data : null;
-  if (!data || typeof data.items !== 'object') throw new Error('Bu dosya bir Kütüphane yedeği değil.');
+  if (!data || typeof data.items !== 'object') throw new Error('Bu dosya bir Candlekeep yedeği değil.');
   if (mode === 'replace') {
     state = migrate(data);
   } else {

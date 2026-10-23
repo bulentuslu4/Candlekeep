@@ -4,6 +4,7 @@ import { h, toast, openDrawer, closeDrawer, readFile, norm } from '../util.js';
 import * as store from '../store.js';
 import { CATALOG, CATALOG_BY_ID } from '../catalog/index.js';
 import { parseQuotes, makeMatcher } from '../quotes-parser.js';
+import { pdfToText } from '../pdf-text.js';
 
 function bookTitle(id) {
   const it = store.getItem(id) || CATALOG_BY_ID.get(id);
@@ -38,6 +39,7 @@ function bookMatcher() {
 }
 
 async function fileToText(file) {
+  if (/\.pdf$/i.test(file.name) || file.type === 'application/pdf') return pdfToText(await readFile(file, 'buffer'));
   const isDocx = /\.docx$/i.test(file.name);
   if (!isDocx) return readFile(file);
   if (!window.mammoth) {
@@ -55,7 +57,7 @@ async function fileToText(file) {
 }
 
 export function importQuotesFlow() {
-  const input = h('input', { type: 'file', accept: '.txt,.md,.docx,text/plain', hidden: true });
+  const input = h('input', { type: 'file', accept: '.pdf,.docx,.txt,.md,application/pdf,text/plain', hidden: true });
   input.onchange = async () => {
     const file = input.files[0];
     if (!file) return;
@@ -63,7 +65,7 @@ export function importQuotesFlow() {
     try {
       text = await fileToText(file);
     } catch (e) {
-      toast(`${e.message}. Word'de "Farklı kaydet > Düz metin (.txt)" ile kaydedip onu yükleyebilirsin.`);
+      toast(`${e.message}. İnternet bağlantını kontrol et ya da dosyayı .txt olarak kaydedip onu yükle.`);
       return;
     }
     const quotes = parseQuotes(text, bookMatcher());
@@ -149,7 +151,7 @@ export function renderQuotes(root) {
   if (!quotes.length) {
     root.replaceChildren(h('section', { class: 'empty' },
       h('h1', null, 'Alıntı defterin burada duracak'),
-      h('p', null, 'Word dosyanı (.docx) ya da düz metin halini (.txt) yükle. Her alıntıyı kitabıyla eşleştirip Türkçe ve orijinalini yan yana koyarım. Dosya sadece bu tarayıcıda kalır, GitHub\'a gitmez.'),
+      h('p', null, 'PDF, Word (.docx) ya da düz metin (.txt) halini yükle. Her alıntıyı kitabıyla eşleştirip Türkçe ve orijinalini yan yana koyarım. Dosya sadece bu tarayıcıda kalır, GitHub\'a gitmez.'),
       h('button', { type: 'button', class: 'btn primary', onclick: importQuotesFlow }, 'Alıntı dosyasını yükle')));
     return;
   }

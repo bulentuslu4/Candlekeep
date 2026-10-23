@@ -28,7 +28,7 @@ function importBackupFlow() {
     if (!file) return;
     let text;
     try { text = await readFile(file); JSON.parse(text); } catch {
-      toast('Dosya okunamadı. Kütüphane\'den indirdiğin .json yedeğini seç.');
+      toast('Dosya okunamadı. Candlekeep\'ten indirdiğin .json yedeğini seç.');
       return;
     }
     const doIt = (mode) => {
@@ -80,13 +80,13 @@ export function renderSettings(root) {
       h('div', { class: 'row' },
         h('button', {
           type: 'button', class: 'btn primary',
-          onclick: () => { download(`kutuphane-yedek-${today()}.json`, store.exportBackup()); toast('Yedek indirildi'); renderSettings(root); },
+          onclick: () => { download(`candlekeep-yedek-${today()}.json`, store.exportBackup()); toast('Yedek indirildi'); renderSettings(root); },
         }, 'Yedeği indir'),
         h('button', { type: 'button', class: 'btn', onclick: importBackupFlow }, 'Yedekten yükle'))),
 
     h('section', { class: 'panel' },
       h('h2', null, 'Alıntı dosyası'),
-      h('p', null, 'Word dosyanı (.docx) ya da .txt halini yükle. Eşleşen kitaplar istersen rafa "Okudum" olarak eklenir.'),
+      h('p', null, 'PDF, Word (.docx) ya da .txt halini yükle. Eşleşen kitaplar istersen rafa "Okudum" olarak eklenir.'),
       h('button', { type: 'button', class: 'btn', onclick: importQuotesFlow }, s.quotes.length ? 'Dosyayı yeniden yükle' : 'Alıntı dosyasını yükle')),
 
     h('section', { class: 'panel danger-zone' },
@@ -99,5 +99,5 @@ export function renderSettings(root) {
         },
       }, 'Her şeyi sil')),
 
-    h('p', { class: 'muted small foot-note' }, 'Kütüphane, sürüm 1.0'));
+    h('p', { class: 'muted small foot-note' }, 'Candlekeep, sürüm 1.1'));
 }

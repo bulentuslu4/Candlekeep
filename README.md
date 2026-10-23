@@ -1,4 +1,4 @@
-# Kütüphane
+# Candlekeep
 
 Kitap ve oyun rafım. GitHub Pages'te çalışan, build gerektirmeyen tek sayfalık uygulama.
 

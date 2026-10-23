@@ -6,7 +6,7 @@ import { DONE, statusLabel } from '../store.js';
 import { CATALOG, CATEGORIES } from '../catalog/index.js';
 import { coverBox } from '../covers.js';
 
-const ui = { kind: 'book', q: '', hideMarked: false };
+const ui = { kind: 'book', q: '', hideMarked: false, ol: {} };
 
 const WORDS = {
   book: { done: 'Okudum', doneId: 'read', want: 'Okuyacağım', all: 'Hepsini okudum' },
@@ -58,7 +58,7 @@ function refreshCard(el) {
   const [b1, b2, b3] = el.querySelectorAll('.dact');
   b1.setAttribute('aria-pressed', String(!!s.done));
   b2.setAttribute('aria-pressed', String(!!s.want));
-  b3.setAttribute('aria-pressed', String(!!s.dismissed));
+  b3?.setAttribute('aria-pressed', String(!!s.dismissed));
   const tag = el.querySelector('.dtag');
   tag.textContent = s.item && !s.done && !s.want ? statusLabel(s.item.kind, s.item.status) : '';
   if (ui.hideMarked && (s.item || s.dismissed)) el.classList.add('fade-out');
@@ -78,6 +78,79 @@ function dcard(entry) {
   refreshCard(el);
   el.classList.remove('fade-out');
   return el;
+}
+
+/* ---------- Open Library: katalogda olmayan kitaplar ---------- */
+
+function olToEntry(doc) {
+  return {
+    id: 'ol-' + doc.key.split('/').pop(),
+    kind: 'book',
+    title: doc.title,
+    creator: (doc.author_name || [])[0] || '',
+    cover: doc.cover_i ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg` : '',
+    year: doc.first_publish_year || null,
+  };
+}
+
+function olAct(entry, action) {
+  const target = action === 'done' ? 'read' : 'want';
+  const before = store.getItem(entry.id);
+  const s = stateOf(entry.id);
+  if ((action === 'done' && s.done) || (action === 'want' && s.want)) {
+    store.removeItem(entry.id);
+    toast(`${entry.title} raftan kaldırıldı`, { label: 'Geri al', run: () => store.restoreItem({ ...before }) });
+  } else if (before) {
+    store.updateItem(entry.id, { status: target });
+  } else {
+    store.createCustom({ id: entry.id, kind: 'book', title: entry.title, creator: entry.creator, cover: entry.cover, status: target });
+  }
+}
+
+function olCard(entry) {
+  const el = h('article', { class: 'dcard', dataset: { cid: entry.id } },
+    h('div', { class: 'dcover' }, coverBox(entry), h('span', { class: 'dtag' })),
+    h('div', { class: 'dmeta' },
+      h('span', { class: 'card-title' }, entry.title),
+      h('span', { class: 'card-sub' }, entry.creator, entry.year && h('span', { class: 'sno' }, entry.year))),
+    h('div', { class: 'dactions two' },
+      h('button', { type: 'button', class: 'dact done', onclick: () => olAct(entry, 'done') }, 'Okudum'),
+      h('button', { type: 'button', class: 'dact want', onclick: () => olAct(entry, 'want') }, 'Sonra')));
+  refreshCard(el);
+  el.classList.remove('fade-out');
+  return el;
+}
+
+async function olSearch(q, box) {
+  box.replaceChildren(h('p', { class: 'muted' }, 'Open Library\'de aranıyor…'));
+  try {
+    if (!ui.ol[q]) {
+      const u = new URL('https://openlibrary.org/search.json');
+      u.searchParams.set('q', q);
+      u.searchParams.set('limit', '24');
+      u.searchParams.set('fields', 'key,title,author_name,cover_i,first_publish_year');
+      const r = await fetch(u);
+      if (!r.ok) throw new Error();
+      ui.ol[q] = ((await r.json()).docs || []).filter((d) => d.key && d.title).map(olToEntry);
+    }
+    const list = ui.ol[q];
+    box.replaceChildren(list.length
+      ? h('div', { class: 'dgrid' }, list.map(olCard))
+      : h('p', { class: 'muted' }, 'Open Library\'de de bulunamadı. Rafım\'dan "Kitap ekle" ile elle ekleyebilirsin.'));
+  } catch {
+    box.replaceChildren(h('p', { class: 'muted' }, 'Open Library şu an cevap vermiyor, biraz sonra tekrar dene.'));
+  }
+}
+
+function olSection(q, autoRun) {
+  const box = h('div', { class: 'ol-results' });
+  const sec = h('section', { class: 'dsection', id: 'ol' },
+    h('h2', { class: 'section-title' }, 'Katalogda olmayanlar'),
+    h('p', { class: 'muted' }, `Aradığın kitap yukarıda yoksa, dünyanın en büyük açık kitap kataloğu Open Library'de "${q}" için bakabilirim.`),
+    box);
+  if (autoRun || ui.ol[q]) olSearch(q, box);
+  else box.append(h('button', { type: 'button', class: 'btn', onclick: () => olSearch(q, box) }, 'Open Library\'de ara'));
+  return sec;
 }
 
 function seriesBlock(name, entries) {
@@ -156,8 +229,9 @@ export function renderDiscover(root) {
         }, c.label)))),
     ...(sections.some(Boolean)
       ? sections.filter(Boolean)
-      : [h('p', { class: 'muted empty inline' }, ui.hideMarked ? 'Bu bölümde bakmadığın eser kalmadı.' : 'Aramanla eşleşen eser yok. Katalogda yoksa Rafım\'dan kendin ekleyebilirsin.')]),
-    h('p', { class: 'muted small foot-note' }, 'Listede olmayan bir şeyi Rafım sekmesindeki "Kitap ekle" / "Oyun ekle" ile ekleyebilirsin.'));
+      : [h('p', { class: 'muted empty inline' }, ui.hideMarked && !ui.q ? 'Bu bölümde bakmadığın eser kalmadı.' : 'Katalogda bu aramayla eşleşen eser yok.')]),
+    kind === 'book' && ui.q.trim().length >= 3 && olSection(ui.q.trim(), !sections.some(Boolean)),
+    h('p', { class: 'muted small foot-note' }, kind === 'book' ? 'Aradığın kitabı yazınca katalogda yoksa Open Library\'de de bakılır. Hiçbir yerde yoksa Rafım\'dan "Kitap ekle" ile elle eklersin.' : 'Listede olmayan bir oyunu Rafım sekmesindeki "Oyun ekle" ile ekleyebilirsin.'));
 }
 
 // Kartları tek tek güncelle (bütün sayfayı yeniden çizmeden)

@@ -11,7 +11,7 @@
 
 import { norm } from './util.js';
 
-const SECTION_SPLIT = /^[ \t]*\*[ \t]*\n[ \t]*\*[ \t]*\*[ \t]*$/m;
+const SECTION_SPLIT = /^[ \t]*\*[ \t]*\n[ \t]*\*[ \t]*\*[ \t]*$|^[ \t]*\*[ \t]*\*[ \t]*\*[ \t]*$/m;
 const QUOTE_SPLIT = /^[ \t]*[-–—_]{5,}[ \t]*$/m;
 const TR_CHARS = /[çğıöşüÇĞİÖŞÜ]/;
 const TR_WORDS = /\b(ve|bir|bu|da|de|için|ama|gibi|diye|çok|değil|ne|ile)\b/gi;
@@ -34,7 +34,8 @@ function splitByHeadings(lines) {
     const l = lines[i];
     if (isHeadingLine(l)) {
       const prev = i === 0 ? '' : lines[i - 1];
-      const afterBreak = !prev.trim() || QUOTE_SPLIT_LINE.test(prev);
+      // PDF'lerde boş satırlar kaybolabildiği için iki+ kelimelik büyük harfli başlıklar da yeni bölüm açar
+      const afterBreak = !prev.trim() || QUOTE_SPLIT_LINE.test(prev) || l.trim().split(/\s+/).length >= 2;
       if (cur.head.length && !hasBody() && cur.head.length < 3) {
         cur.head.push(l);
         continue;

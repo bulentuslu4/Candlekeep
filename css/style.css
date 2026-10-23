@@ -366,6 +366,7 @@ input::placeholder, textarea::placeholder { color: var(--ink-2); opacity: 0.8; }
 .dmeta { display: flex; flex-direction: column; gap: 2px; min-height: 3.4em; }
 .dmeta .card-title { font-size: 0.95rem; }
 .dactions { display: grid; grid-template-columns: 1.3fr 1fr 0.8fr; border: 1px solid var(--line); border-radius: var(--radius-ui); overflow: hidden; }
+.dactions.two { grid-template-columns: 1fr 1fr; }
 .dact {
   min-height: 34px; padding: 4px 2px; border: 0; background: transparent; cursor: pointer;
   font-size: 0.8rem; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
